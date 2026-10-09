@@ -1,0 +1,38 @@
+{
+  "summary": "Verified QuantumPOS branding + inline composer iteration. Backend: 34/34 pytest pass (20 existing quantumpos + 7 origin + 7 new branding). New /app/backend/tests/test_branding.py covers: full branding payload on invoice (name/logo/accent/tagline/website/socials), URL normalisation (adds https://, empty socials dropped), merchant.branding + business_name mirrored, inheritance when invoice sent without branding, 400 on non-image logo / bad hex / >400k logo, PUT /merchant/profile branding update + bad hex rejection. Frontend: Landing shows landing-x-link -> https://x.com/tryquantumpos target=_blank. Click launch-app-btn -> Dashboard preview; header-x-link present with same href; preview-banner visible; invoice-composer rendered immediately with no 'New invoice' button/dialog. Composer in preview: fill amount/memo/expiry/tips/split and ALL branding fields (name, tagline, logo via set_input_files, 9945FF swatch, website, four socials) without wallet; brand-logo-preview appears and brand-logo-remove clears it; composer-qr-preview-name & composer-qr-preview-amount update live; submit button reads 'Connect & generate vault'. localStorage key qpos_branding persists through full page reload (verified: name/tagline/website/x/color all restored after reload+launch). End-to-end submit flow: fake Phantom provider (ed25519 via page.expose_function + add_init_script, same technique as iteration_2) connected on submit click, invoice created, InvoiceDetailDialog opened with checkout-qr showing name=TEST_Brand E2E & amount=0.07; wallet-chip visible (connected); branding preserved from before connect. Public /pay/{id} checkout page renders checkout-brand-name, checkout-brand-tagline, checkout-brand-logo, checkout-pay-qr (-name/-amount), amount colour uses accent (#9945FF visible purple), brand-link-website=https://e2e.example.com and brand-link-x=https://x.com/e2e.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_quantumpos.py",
+    "/app/backend/tests/test_auth_origin.py",
+    "/app/backend/tests/test_branding.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "clean_branding() correctly validates data:image/* prefix, hex regex ^#[0-9a-fA-F]{6}$, 400k char cap, trims name<=80 and tagline<=140, normalises URLs via _clean_url (adds https:// if scheme missing), drops empty socials.",
+    "create_invoice stores branding snapshot on the invoice AND updates merchant.branding + business_name — intentional 'last branding wins' behaviour. Invoice without a branding payload inherits merchant.branding, keeping the public checkout branded even on legacy flows.",
+    "public_invoice derives merchant_name from branding.name first and falls back to the merchant business_name param — so GET /checkout/{id} returns the right display name for both branded and legacy invoices.",
+    "InvoiceComposer requireAuth is called ONLY after validation, so a user can fully fill the invoice + branding before any wallet prompt — matches the explicit user request. Fields are preserved because React state is not reset until after a successful POST /invoices.",
+    "localStorage key qpos_branding is written on every branding change (useEffect) and read on mount via loadLocalBranding — persistence confirmed through a hard reload.",
+    "BrandedQR uses qrSafeColor to iteratively darken bright accents until relative luminance <= 0.18, which keeps QR modules scannable on a white background while still visually matching the brand accent. Good UX detail.",
+    "Minor: Checkout.jsx embeds the Unsplash hero image (photo-1639322537228-f710d846310a) via <img> — fine, but it's served at ?w=1600 and only used as a 20%-opacity decoration. Could be a smaller preset to save bandwidth on mobile pay pages. Not blocking."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_branding.py"
+  ],
+  "success_rate": {"backend": "100% (34/34)", "frontend": "100% of requested flows"},
+  "test_credentials": "No static credentials — throwaway ed25519 wallet generated per test (nacl in backend, cryptography.Ed25519PrivateKey in Playwright). /app/memory/test_credentials.md does not exist (not needed for this app).",
+  "seed_data_creation": "Each test creates throwaway merchants + 'TEST_'-prefixed invoices in MongoDB. No real mainnet transactions submitted; fake Phantom signs the SIWS challenge only (no Activate/Pay buttons clicked).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Branding regression suite = /app/backend/tests/test_branding.py (7 tests). Full backend suite (34 tests) runs in ~8s and passes. Frontend fake-Phantom harness technique: generate Ed25519 in Python, expose_function pySignMessage(b58_msg)->b58_sig, add_init_script injects window.phantom.solana with b58 encoded publicKey and signMessage that calls pySignMessage. Submit flow verified: branding fields in composer are preserved through the mid-submit Phantom connect+sign because requireAuth runs after validation and setState resets happen only post-POST. Public /pay/{id} page uses data-testids checkout-brand-{name,tagline,logo}, checkout-pay-qr(+-name/-amount), brand-link-{website,x,instagram,telegram,discord}.",
+  "rca of the issue": "N/A — this iteration was a feature review, not a bug RCA. All requested branding + inline-composer + X-link behaviours verified green."
+}
