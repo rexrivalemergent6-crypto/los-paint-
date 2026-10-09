@@ -5,6 +5,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os, logging, uuid, secrets, asyncio, io, csv
 from pathlib import Path
+from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
@@ -140,11 +141,27 @@ def valid_solana_address(address: str) -> bool:
         return False
 
 
-def build_challenge_message(address: str, nonce: str, issued: datetime, expires: datetime) -> str:
+SIWS_CHAIN = {"mainnet-beta": "mainnet", "devnet": "devnet", "testnet": "testnet"}.get(CLUSTER, CLUSTER)
+
+
+def resolve_auth_origin(origin_header: Optional[str]) -> tuple:
+    """Phantom blocks SIWS messages whose domain/URI don't match the requesting page,
+    so bind the challenge to the actual browser origin (falls back to AUTH_DOMAIN)."""
+    if origin_header:
+        parsed = urlparse(origin_header)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return parsed.netloc, f"{parsed.scheme}://{parsed.netloc}"
+    return AUTH_DOMAIN, f"https://{AUTH_DOMAIN}"
+
+
+def build_challenge_message(address: str, nonce: str, issued: datetime, expires: datetime,
+                            domain: str = None, uri: str = None) -> str:
+    domain = domain or AUTH_DOMAIN
+    uri = uri or f"https://{domain}"
     return (
-        f"{AUTH_DOMAIN} wants you to sign in with your Solana account:\n{address}\n\n"
+        f"{domain} wants you to sign in with your Solana account:\n{address}\n\n"
         f"Sign in to QuantumPOS merchant dashboard.\n\n"
-        f"URI: https://{AUTH_DOMAIN}\nVersion: 1\nChain ID: solana:{CLUSTER}\n"
+        f"URI: {uri}\nVersion: 1\nChain ID: solana:{SIWS_CHAIN}\n"
         f"Nonce: {nonce}\nIssued At: {iso(issued)}\nExpiration Time: {iso(expires)}"
     )
 
@@ -160,12 +177,13 @@ class VerifyIn(BaseModel):
 
 
 @api.post("/auth/challenge")
-async def auth_challenge(body: ChallengeIn):
+async def auth_challenge(body: ChallengeIn, origin: Optional[str] = Header(default=None)):
     if not valid_solana_address(body.address):
         raise HTTPException(400, "Invalid Solana address")
     issued, expires = now(), now() + timedelta(minutes=CHALLENGE_TTL_MIN)
     nonce = secrets.token_urlsafe(24)
-    message = build_challenge_message(body.address, nonce, issued, expires)
+    domain, uri = resolve_auth_origin(origin)
+    message = build_challenge_message(body.address, nonce, issued, expires, domain, uri)
     await db.challenges.insert_one({
         "nonce": nonce, "address": body.address, "message": message,
         "expires_at": expires, "created_at": issued,
