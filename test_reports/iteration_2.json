@@ -1,0 +1,42 @@
+{
+  "summary": "Verified QuantumPOS Phantom SIWS fix end-to-end. Backend: 27/27 pytest cases pass (20 existing + 7 new in test_auth_origin.py). New tests confirm that POST /api/auth/challenge binds domain + URI to the Origin header (both http and https schemes), falls back to AUTH_DOMAIN env when Origin is absent/invalid, uses 'Chain ID: solana:mainnet', and that a full challenge->ed25519 sign->verify->/auth/me cycle succeeds with an Origin-bound message while tampered signatures still return 401. Frontend: Playwright test injected a fake window.phantom.solana provider via add_init_script (isPhantom=true, connect returning the Python-generated ed25519 pubkey, signMessage asserting first-line domain==window.location.host and throwing {code:-32000} on mismatch, otherwise signing via page.expose_function + cryptography.Ed25519PrivateKey). Clicking data-testid=phantom-connect-btn resulted in: fake phantom detected, jwt token stored in localStorage (199 chars), and the merchant dashboard rendered with the merchant address pill (GAYX...k3AR) matching the generated wallet. Rejection flow (window.__PHANTOM_REJECT__=true, code 4001) produced exactly the required message: 'Message signing was rejected in Phantom'.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/auth/verify", "issue": "Invalid Solana address returns 401 while /auth/challenge returns 400 for the same input — contract inconsistency carried over from iteration 1."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "Connect Phantom success navigation", "issue": "App does not change URL to /dashboard after login (SPA swap based on merchant state). The Landing->Dashboard transition works, but any automated check waiting on wait_for_url('**/dashboard**') will time out. Consider pushing a '/dashboard' route for deep-linking + test ergonomics.", "affected_selectors": ["[data-testid=\"phantom-connect-btn\"]"]}
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_quantumpos.py",
+    "/app/backend/tests/test_auth_origin.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional: route Dashboard under /dashboard so a successful login changes window.location.pathname (improves deep-linking + automation).",
+    "Optional: align /auth/verify to return 400 for malformed address like /auth/challenge."
+  ],
+  "critical_code_review_comments": [
+    "resolve_auth_origin correctly uses urlparse netloc and whitelists http/https schemes before trusting Origin; falls back to AUTH_DOMAIN env — matches Phantom's SIWS domain check.",
+    "Challenge is stored with the exact message (including derived domain), and /auth/verify looks it up by {nonce,address,message} find_one_and_delete, so a message tampered to a different Origin cannot match a stored challenge — defense in depth beyond the ed25519 signature check.",
+    "signMessagePhantom uses TextEncoder+bs58.encode(signature) correctly; message decoding on backend uses utf-8 — consistent.",
+    "describeWalletError maps Phantom codes {4001, 4100, -32000, -32603} to specific user messages; code -32000 message mentions 'sign-in domain mismatch' which matches the Phantom block the fix targets.",
+    "AUTH_DOMAIN in backend/.env is set to the preview host, so even requests without an Origin header still produce a message Phantom will accept against that host."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_origin.py"
+  ],
+  "success_rate": {"backend": "100% (27/27)", "frontend": "100% of requested flows (login happy path + 4001 rejection)"},
+  "test_credentials": "No static credentials — throwaway ed25519 keys generated per test (nacl in backend tests, cryptography.Ed25519PrivateKey in Playwright test).",
+  "seed_data_creation": "Each test run creates throwaway merchants + 'TEST_'-memo invoices in MongoDB; no mainnet tx submitted.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend fix verified: challenge message domain is bound to Origin header (parsed via urlparse, http/https only, falls back to AUTH_DOMAIN env). Chain ID line is 'solana:mainnet'. Backend regression suite = /app/backend/tests/test_quantumpos.py (20 tests) + /app/backend/tests/test_auth_origin.py (7 tests) — all pass. For future Playwright tests of Phantom flows: use page.add_init_script to install window.phantom.solana BEFORE load, use page.expose_function to sign via cryptography.Ed25519PrivateKey (nacl/base58 are NOT in the browser-automation runner's venv; a pure-python base58 encoder is in test_auth_origin history). The app does NOT navigate to /dashboard URL on login — confirm login by checking localStorage['qpos_token'] + Dashboard DOM (e.g. text 'MERCHANT' pill with address).",
+  "rca of the issue": "Root cause (per request) was Phantom rejecting signMessage with code -32000 because the SIWS first-line domain and URI line did not equal the page's origin — the backend used a static AUTH_DOMAIN env value. Fix in server.py (resolve_auth_origin + build_challenge_message now accept Origin header; Chain ID set to solana:mainnet) and in AuthContext.describeWalletError (specific message per code). Verified by both backend tests (origin-bound message assembly + full sign/verify) and the Playwright fake-provider which emulates Phantom's exact -32000 behavior on domain mismatch and completes successfully when domain matches."
+}
