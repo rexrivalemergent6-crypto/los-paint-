@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { Vault, Gear, SignOut, Copy, Check, XLogo } from "@phosphor-icons/react";
+import { Vault, Gear, SignOut, Copy, Check, XLogo, House } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 
@@ -15,7 +16,9 @@ function short(a) {
 }
 
 export default function Header() {
-  const { merchant, logout, setMerchant, login, connecting } = useAuth();
+  const { merchant, logout: _logout, setMerchant, login, connecting } = useAuth();
+  const navigate = useNavigate();
+  const logout = async () => { await _logout(); navigate("/"); };
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(merchant?.business_name || "");
   const [payout, setPayout] = useState(merchant?.payout_address || "");
@@ -44,12 +47,18 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-black/70 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center bg-quantum-green">
-            <Vault weight="fill" className="h-4 w-4 text-black" />
-          </div>
-          <span className="font-mono text-base font-bold tracking-tighter">QuantumPOS</span>
+      <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-3 py-3 sm:px-5">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Link to="/" data-testid="header-home-logo" className="flex items-center gap-2.5" aria-label="Home">
+            <div className="flex h-7 w-7 items-center justify-center bg-quantum-green">
+              <Vault weight="fill" className="h-4 w-4 text-black" />
+            </div>
+            <span className="hidden font-mono text-base font-bold tracking-tighter sm:inline">QuantumPOS</span>
+          </Link>
+          <Link to="/" data-testid="header-home-link"
+            className="flex h-8 items-center gap-1.5 border border-white/10 px-2.5 font-plex-mono text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white">
+            <House className="h-4 w-4" /> <span className="hidden sm:inline">Home</span>
+          </Link>
           <span className="ml-1 hidden font-plex-mono text-[10px] uppercase tracking-widest text-quantum-green/70 sm:inline">
             {merchant?.business_name || (merchant ? "merchant" : "preview")}
           </span>
@@ -60,7 +69,7 @@ export default function Header() {
           aria-label="QuantumPOS on X"
           className="flex h-9 items-center gap-1.5 border border-white/10 px-3 font-plex-mono text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white">
           <XLogo weight="bold" className="h-4 w-4" />
-          <span className="hidden md:inline">@tryquantumpos</span>
+          <span className="hidden lg:inline">@tryquantumpos</span>
         </a>
         {!merchant ? (
           <div className="flex items-center gap-2">

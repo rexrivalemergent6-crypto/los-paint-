@@ -13,7 +13,7 @@ import QuantumBackground from "@/components/QuantumBackground";
 import QuantumBanner from "@/components/QuantumBanner";
 import StatusBadge from "@/components/StatusBadge";
 import api from "@/lib/api";
-import { connectPhantom, hasPhantom } from "@/lib/phantom";
+import { connectPhantom, hasPhantom, isMobile, phantomBrowseUrl } from "@/lib/phantom";
 import { sendPayment } from "@/lib/solanaClient";
 
 export default function Checkout() {
@@ -53,7 +53,7 @@ export default function Checkout() {
       await refresh(false);
       setTimeout(() => refresh(true), 4000);
     } catch (e) {
-      toast.error(e?.message || "Payment failed or cancelled");
+      toast.error(e?.response?.data?.detail || e?.message || "Payment failed or cancelled");
     } finally { setPaying(false); }
   };
 
@@ -206,7 +206,13 @@ export default function Checkout() {
                   <Wallet weight="fill" className="mr-2 h-5 w-5" />
                   {paying ? "Confirm in Phantom…" : "Connect Phantom & Pay"}
                 </Button>
-                {!hasPhantom() && (
+                {!hasPhantom() && isMobile() && (
+                  <a href={phantomBrowseUrl()} data-testid="checkout-open-in-phantom"
+                    className="mt-2 block text-center font-plex-mono text-[11px] text-quantum-green underline">
+                    Open this checkout in the Phantom app
+                  </a>
+                )}
+                {!hasPhantom() && !isMobile() && (
                   <a href="https://phantom.app/" target="_blank" rel="noreferrer"
                     className="mt-2 block text-center font-plex-mono text-[11px] text-quantum-purple underline">
                     Install Phantom to pay in-browser

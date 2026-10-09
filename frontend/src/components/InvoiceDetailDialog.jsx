@@ -69,7 +69,7 @@ export default function InvoiceDetailDialog({ invoice, open, onOpenChange, onUpd
       update(data);
       toast.success("Vault activated — now accepting payments");
     } catch (e) {
-      toast.error(e?.message || e?.response?.data?.detail || "Activation failed");
+      toast.error(e?.response?.data?.detail || e?.message || "Activation failed");
     } finally { setBusy(false); }
   };
 
@@ -95,7 +95,7 @@ export default function InvoiceDetailDialog({ invoice, open, onOpenChange, onUpd
       toast.success("Settled — SOL swept to your payout wallet");
     } catch (e) {
       setSettlePhase(null);
-      toast.error(e?.message || e?.response?.data?.detail || "Settlement failed");
+      toast.error(e?.response?.data?.detail || e?.message || "Settlement failed");
     } finally { setBusy(false); }
   };
 
@@ -104,7 +104,7 @@ export default function InvoiceDetailDialog({ invoice, open, onOpenChange, onUpd
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!settlePhase) onOpenChange(o); }}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-none border-white/10 bg-quantum-ink sm:max-w-lg">
+      <DialogContent className="max-h-[92dvh] w-[calc(100vw-1rem)] min-w-0 overflow-y-auto overflow-x-hidden rounded-none border-white/10 bg-quantum-ink p-4 sm:max-w-lg sm:p-6 [&>*]:min-w-0">
         <AnimatePresence mode="wait">
           {settlePhase ? (
             <motion.div key="settle" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -140,7 +140,7 @@ export default function InvoiceDetailDialog({ invoice, open, onOpenChange, onUpd
                     fallbackName={inv.merchant_name} amountSol={inv.amount_sol} size={160} />
                   <p className="font-plex-mono text-[10px] uppercase tracking-widest text-white/40">Solana Pay · scan to pay</p>
                   <div className="flex w-full items-center gap-2">
-                    <code className="flex-1 truncate border border-white/10 bg-black px-2 py-1.5 font-plex-mono text-[11px] text-quantum-cyan">
+                    <code className="min-w-0 flex-1 truncate border border-white/10 bg-black px-2 py-1.5 font-plex-mono text-[11px] text-quantum-cyan">
                       {checkoutUrl}
                     </code>
                     <Button data-testid="copy-checkout-link" size="icon" variant="ghost"

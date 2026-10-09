@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import {
 import QuantumBackground from "@/components/QuantumBackground";
 import QuantumBanner from "@/components/QuantumBanner";
 import { useAuth } from "@/context/AuthContext";
+import { isMobile, phantomBrowseUrl } from "@/lib/phantom";
 import { ConfigContext } from "@/App";
 
 const FEATURES = [
@@ -52,7 +54,9 @@ const STEPS = [
 ];
 
 export default function Landing() {
-  const { login, enterPreview, connecting, hasPhantom } = useAuth();
+  const { login, enterPreview: _enterPreview, connecting, hasPhantom, merchant } = useAuth();
+  const navigate = useNavigate();
+  const enterPreview = () => { _enterPreview(); navigate("/app"); };
   const [err, setErr] = useState("");
   const cfg = ConfigContext.current;
 
@@ -61,6 +65,7 @@ export default function Landing() {
     try {
       await login();
       toast.success("Wallet verified — welcome to QuantumPOS");
+      navigate("/app");
     } catch (e) {
       const msg = e?.message || "Connection failed";
       setErr(msg);
@@ -117,20 +122,28 @@ export default function Landing() {
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Button data-testid="launch-app-btn" onClick={enterPreview}
                 className="btn-sheen group h-12 rounded-none bg-quantum-green px-7 font-mono text-sm font-bold text-black transition-transform hover:-translate-y-0.5 hover:bg-quantum-greenDark">
-                Launch app
+                {merchant ? "Open dashboard" : "Launch app"}
                 <ArrowRight weight="bold" className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
+              {!merchant && (
               <Button data-testid="phantom-connect-btn" onClick={handleConnect} disabled={connecting}
                 variant="outline"
                 className="h-12 rounded-none border-quantum-purple/50 bg-quantum-purple/5 px-6 font-mono text-sm font-bold text-quantum-purple transition-transform hover:-translate-y-0.5 hover:bg-quantum-purple/10">
                 <Wallet weight="fill" className="mr-2 h-4 w-4" />
                 {connecting ? "Awaiting signature…" : "Connect Phantom"}
               </Button>
+              )}
             </div>
             <p className="mt-3 font-plex-mono text-[11px] text-white/35">
               Explore the full dashboard first — connect a wallet only when you're ready to go live.
             </p>
-            {!hasPhantom && (
+            {!hasPhantom && isMobile() && (
+              <a href={phantomBrowseUrl()} data-testid="open-in-phantom-link"
+                className="mr-4 mt-1 inline-block font-plex-mono text-xs text-quantum-green underline underline-offset-4">
+                Open in Phantom app →
+              </a>
+            )}
+            {!hasPhantom && !isMobile() && (
               <a href="https://phantom.app/" target="_blank" rel="noreferrer"
                 data-testid="install-phantom-link"
                 className="mt-1 inline-block font-plex-mono text-xs text-quantum-purple underline underline-offset-4">

@@ -30,3 +30,13 @@ export async function signMessagePhantom(message) {
   const { signature } = await p.signMessage(encoded, "utf8");
   return bs58.encode(signature);
 }
+
+export function isMobile() {
+  if (typeof navigator === "undefined") return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+/** Deep link that opens the current page inside Phantom's in-app browser (mobile). */
+export function phantomBrowseUrl(url = window.location.href) {
+  return `https://phantom.app/ul/browse/${encodeURIComponent(url)}?ref=${encodeURIComponent(window.location.origin)}`;
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
@@ -11,8 +11,8 @@ import "@/App.css";
 
 export const ConfigContext = { current: null };
 
-function Gate() {
-  const { merchant, preview, loading } = useAuth();
+function Gate({ children }) {
+  const { loading } = useAuth();
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-quantum-ink">
@@ -22,7 +22,7 @@ function Gate() {
       </div>
     );
   }
-  return (merchant || preview) ? <Dashboard /> : <Landing />;
+  return children;
 }
 
 function App() {
@@ -30,7 +30,7 @@ function App() {
   useEffect(() => {
     api.get("/config").then(({ data }) => {
       ConfigContext.current = data;
-      initConnection(data.rpc_url);
+      initConnection();
       setReady(true);
     }).catch(() => setReady(true));
   }, []);
@@ -40,7 +40,9 @@ function App() {
       <AuthProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Gate />} />
+            <Route path="/" element={<Gate><Landing /></Gate>} />
+            <Route path="/app" element={<Gate><Dashboard /></Gate>} />
+            <Route path="/dashboard" element={<Navigate to="/app" replace />} />
             <Route path="/pay/:id" element={<Checkout />} />
           </Routes>
         </BrowserRouter>

@@ -111,15 +111,37 @@ def explorer_address(addr: str) -> str:
     return f"https://explorer.solana.com/address/{addr}{suffix}"
 
 
-async def rpc_call(method: str, params: list):
-    payload = {"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+RPC_FALLBACKS = [u.strip() for u in os.environ.get("SOLANA_RPC_FALLBACKS", "https://solana-rpc.publicnode.com").split(",") if u.strip()]
+RPC_ENDPOINTS = [RPC_URL] + [u for u in RPC_FALLBACKS if u != RPC_URL]
+
+
+async def rpc_raw(payload) -> dict:
+    """POST a JSON-RPC payload server-side (no browser Origin -> public RPCs don't 403),
+    trying the primary endpoint then fallbacks."""
+    last_err = None
     async with httpx.AsyncClient(timeout=20) as hc:
-        r = await hc.post(RPC_URL, json=payload)
-        r.raise_for_status()
-        data = r.json()
-        if "error" in data:
-            raise HTTPException(status_code=502, detail=f"RPC error: {data['error']}")
-        return data["result"]
+        for url in RPC_ENDPOINTS:
+            try:
+                r = await hc.post(url, json=payload)
+                if r.status_code in (403, 429) or r.status_code >= 500:
+                    last_err = f"{url} -> HTTP {r.status_code}"
+                    continue
+                data = r.json()
+                err = data.get("error") if isinstance(data, dict) else None
+                if err and err.get("code") in (403, 429, -32005):
+                    last_err = f"{url} -> {err}"
+                    continue
+                return data
+            except (httpx.HTTPError, ValueError) as e:
+                last_err = f"{url} -> {e}"
+    raise HTTPException(status_code=502, detail=f"All Solana RPC endpoints failed: {last_err}")
+
+
+async def rpc_call(method: str, params: list):
+    data = await rpc_raw({"jsonrpc": "2.0", "id": 1, "method": method, "params": params})
+    if "error" in data:
+        raise HTTPException(status_code=502, detail=f"RPC error: {data['error']}")
+    return data["result"]
 
 
 async def get_balance(address: str) -> int:
@@ -634,6 +656,24 @@ async def checkout_check(invoice_id: str):
     merchant = await db.merchants.find_one({"address": inv["merchant_address"]}, {"_id": 0})
     name = (merchant or {}).get("business_name") or "Merchant"
     return public_invoice(inv, name)
+
+
+RPC_PROXY_METHODS = {
+    "getLatestBlockhash", "getSignatureStatuses", "getBalance", "getAccountInfo",
+    "getMinimumBalanceForRentExemption", "getFeeForMessage", "getBlockHeight", "getSlot",
+    "getEpochInfo", "getVersion", "getGenesisHash", "simulateTransaction", "isBlockhashValid",
+    "getRecentPrioritizationFees", "getMultipleAccounts", "getTransaction", "sendTransaction",
+}
+
+
+@api.post("/rpc")
+async def rpc_proxy(payload: dict):
+    """Browser-safe Solana JSON-RPC proxy (mainnet public RPC returns 403 to browser origins)."""
+    method = payload.get("method") if isinstance(payload, dict) else None
+    if method not in RPC_PROXY_METHODS:
+        raise HTTPException(400, f"RPC method not allowed: {method}")
+    return await rpc_raw({"jsonrpc": "2.0", "id": payload.get("id", 1), "method": method,
+                          "params": payload.get("params", [])})
 
 
 @api.get("/config")

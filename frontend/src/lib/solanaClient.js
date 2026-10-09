@@ -7,20 +7,43 @@ import {
   ComputeBudgetProgram,
 } from "@solana/web3.js";
 import { getPhantom } from "./phantom";
+import { API } from "./api";
 
+// Browser -> our backend proxy -> Solana RPC. The public mainnet RPC rejects browser
+// origins with 403 "Access forbidden", so all reads go through /api/rpc.
+const PROXY_RPC = `${API}/rpc`;
 let _conn = null;
-let _rpc = null;
 
-export function initConnection(rpcUrl) {
-  if (!_conn || _rpc !== rpcUrl) {
-    _rpc = rpcUrl;
-    _conn = new Connection(rpcUrl, "confirmed");
+export function initConnection() {
+  if (!_conn) {
+    _conn = new Connection(PROXY_RPC, { commitment: "confirmed", disableRetryOnRateLimit: false });
   }
   return _conn;
 }
 
 export function getConnection() {
-  return _conn;
+  return _conn || initConnection();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// HTTP polling confirmation (no websocket needed through the proxy).
+async function confirmByPolling(conn, signature, lastValidBlockHeight, timeoutMs = 90000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const { value } = await conn.getSignatureStatuses([signature]);
+      const st = value?.[0];
+      if (st?.err) throw new Error(`Transaction failed on-chain: ${JSON.stringify(st.err)}`);
+      if (st && (st.confirmationStatus === "confirmed" || st.confirmationStatus === "finalized")) return;
+      const h = await conn.getBlockHeight("confirmed");
+      if (h > lastValidBlockHeight) throw new Error("Transaction expired before confirming — please retry");
+    } catch (e) {
+      if (/failed on-chain|expired/.test(e.message)) throw e;
+    }
+    await sleep(2000);
+  }
+  throw new Error("Timed out waiting for confirmation — check the explorer, then refresh");
 }
 
 function ixFromDescriptor(desc) {
@@ -45,10 +68,15 @@ async function buildAndSend(instructions, feePayer, computeUnits) {
   }
   instructions.forEach((ix) => tx.add(ix));
   tx.feePayer = new PublicKey(feePayer);
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed");
+  let blockhash, lastValidBlockHeight;
+  try {
+    ({ blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash("confirmed"));
+  } catch (e) {
+    throw new Error(`Could not reach Solana network: ${e?.message || e}`);
+  }
   tx.recentBlockhash = blockhash;
   const { signature } = await p.signAndSendTransaction(tx);
-  await conn.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, "confirmed");
+  await confirmByPolling(conn, signature, lastValidBlockHeight);
   return signature;
 }
 
