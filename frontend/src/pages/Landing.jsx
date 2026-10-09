@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Wallet, Vault, Lightning, ArrowRight, GithubLogo, ShieldWarning, TreeStructure,
-  Key, HandCoins, Atom,
+  Key, HandCoins, Atom, XLogo,
 } from "@phosphor-icons/react";
 import QuantumBackground from "@/components/QuantumBackground";
 import QuantumBanner from "@/components/QuantumBanner";
@@ -83,10 +83,17 @@ export default function Landing() {
             </div>
             <span className="font-mono text-lg font-bold tracking-tighter">QuantumPOS</span>
           </div>
-          <a href="https://github.com/blueshift-gg/solana-winternitz-vault" target="_blank" rel="noreferrer"
-            className="flex items-center gap-1.5 font-plex-mono text-xs text-white/50 transition-colors hover:text-quantum-green">
-            <GithubLogo className="h-4 w-4" /> vault program
-          </a>
+          <div className="flex items-center gap-4">
+            <a href="https://github.com/blueshift-gg/solana-winternitz-vault" target="_blank" rel="noreferrer"
+              className="hidden items-center gap-1.5 font-plex-mono text-xs text-white/50 transition-colors hover:text-quantum-green sm:flex">
+              <GithubLogo className="h-4 w-4" /> vault program
+            </a>
+            <a data-testid="landing-x-link" href="https://x.com/tryquantumpos" target="_blank" rel="noreferrer"
+              aria-label="QuantumPOS on X"
+              className="flex items-center gap-1.5 border border-white/15 px-3 py-1.5 font-plex-mono text-xs text-white/70 transition-colors hover:border-white/40 hover:text-white">
+              <XLogo weight="bold" className="h-4 w-4" /> @tryquantumpos
+            </a>
+          </div>
         </header>
 
         {/* hero */}

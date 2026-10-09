@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
-import { Vault, Gear, SignOut, Copy, Check } from "@phosphor-icons/react";
+import { Vault, Gear, SignOut, Copy, Check, XLogo } from "@phosphor-icons/react";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 
@@ -55,6 +55,13 @@ export default function Header() {
           </span>
         </div>
 
+        <div className="flex items-center gap-2">
+        <a data-testid="header-x-link" href="https://x.com/tryquantumpos" target="_blank" rel="noreferrer"
+          aria-label="QuantumPOS on X"
+          className="flex h-9 items-center gap-1.5 border border-white/10 px-3 font-plex-mono text-xs text-white/60 transition-colors hover:border-white/30 hover:text-white">
+          <XLogo weight="bold" className="h-4 w-4" />
+          <span className="hidden md:inline">@tryquantumpos</span>
+        </a>
         {!merchant ? (
           <div className="flex items-center gap-2">
             <span className="hidden font-plex-mono text-[10px] uppercase tracking-widest text-quantum-warning sm:inline">
@@ -112,6 +119,7 @@ export default function Header() {
           </Button>
         </div>
         )}
+        </div>
       </div>
     </header>
   );

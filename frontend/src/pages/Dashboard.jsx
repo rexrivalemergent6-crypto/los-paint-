@@ -9,7 +9,7 @@ import { DownloadSimple, Receipt, TrendUp, Coins, Stack, Lightning } from "@phos
 import Header from "@/components/Header";
 import QuantumBanner from "@/components/QuantumBanner";
 import StatusBadge from "@/components/StatusBadge";
-import CreateInvoiceDialog from "@/components/CreateInvoiceDialog";
+import InvoiceComposer from "@/components/InvoiceComposer";
 import InvoiceDetailDialog from "@/components/InvoiceDetailDialog";
 import { useAuth } from "@/context/AuthContext";
 import api, { API } from "@/lib/api";
@@ -90,7 +90,7 @@ export default function Dashboard() {
         <div data-testid="preview-banner" className="border-b border-quantum-warning/30 bg-quantum-warning/5">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-5 py-2.5">
             <p className="font-plex-mono text-xs text-quantum-warning">
-              ▲ Preview mode — connect Phantom to create real invoices & settle on Solana mainnet.
+              ▲ Preview mode — fill in your invoice & branding below, then connect Phantom when you are ready to go live on mainnet.
             </p>
             <Button data-testid="preview-connect-btn" onClick={connect}
               className="h-8 rounded-none bg-quantum-green px-3 font-mono text-xs font-bold text-black hover:bg-quantum-greenDark">
@@ -113,16 +113,10 @@ export default function Dashboard() {
               className="h-10 rounded-none border-white/15 bg-transparent font-mono text-sm text-white hover:bg-white/5">
               <DownloadSimple className="mr-1.5 h-4 w-4" /> CSV
             </Button>
-            {demo ? (
-              <Button data-testid="new-invoice-btn" onClick={connect}
-                className="btn-sheen h-10 rounded-none bg-quantum-green px-5 font-mono text-sm font-bold text-black hover:bg-quantum-greenDark">
-                + New invoice
-              </Button>
-            ) : (
-              <CreateInvoiceDialog onCreated={(inv) => { load(); openDetail(inv); }} solUsd={solUsd} />
-            )}
           </div>
         </div>
+
+        <InvoiceComposer solUsd={solUsd} onCreated={(inv) => { load(); openDetail(inv); }} />
 
         <div className="mb-6 grid grid-cols-2 gap-px border border-white/10 bg-white/10 lg:grid-cols-4">
           <StatCard icon={Stack} label="Invoices" value={stats?.total_invoices ?? 0} accent="text-quantum-purple" delay={0.05} />

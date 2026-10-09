@@ -3,7 +3,7 @@ from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
-import os, logging, uuid, secrets, asyncio, io, csv
+import os, logging, uuid, secrets, asyncio, io, csv, re
 from pathlib import Path
 from urllib.parse import urlparse
 from datetime import datetime, timezone, timedelta
@@ -82,7 +82,8 @@ def public_invoice(inv: dict, include_merchant_name: Optional[str] = None) -> di
         "expires_at": inv["expires_at"],
         "paid_at": inv.get("paid_at"),
         "settled_at": inv.get("settled_at"),
-        "merchant_name": include_merchant_name,
+        "merchant_name": (inv.get("branding") or {}).get("name") or include_merchant_name,
+        "branding": inv.get("branding") or {},
         "solana_pay_url": solana_pay_url(inv),
         "explorer_open": explorer_tx(inv.get("open_tx_sig")),
         "explorer_close": explorer_tx(inv.get("close_tx_sig")),
@@ -246,9 +247,60 @@ async def auth_me(merchant: dict = Depends(current_merchant)):
     return merchant
 
 
+HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+LOGO_MAX_CHARS = 400_000  # ~300 KB data URL
+SOCIAL_KEYS = ("x", "instagram", "telegram", "discord")
+
+
+class BrandingIn(BaseModel):
+    name: Optional[str] = ""
+    logo: Optional[str] = ""          # data:image/... URL (client-resized)
+    accent_color: Optional[str] = "#14F195"
+    tagline: Optional[str] = ""
+    website: Optional[str] = ""
+    socials: Optional[dict] = None    # {x, instagram, telegram, discord}
+
+
+def _clean_url(u: Optional[str]) -> str:
+    u = (u or "").strip()[:300]
+    if not u:
+        return ""
+    if not re.match(r"^https?://", u, re.I):
+        u = "https://" + u
+    return u
+
+
+def clean_branding(b: Optional[BrandingIn]) -> dict:
+    if b is None:
+        return {}
+    logo = (b.logo or "").strip()
+    if logo:
+        if not logo.startswith("data:image/"):
+            raise HTTPException(400, "Logo must be an image")
+        if len(logo) > LOGO_MAX_CHARS:
+            raise HTTPException(400, "Logo is too large (max ~300 KB)")
+    accent = (b.accent_color or "#14F195").strip()
+    if not HEX_RE.match(accent):
+        raise HTTPException(400, "Accent colour must be a hex value like #14F195")
+    socials = {}
+    for k in SOCIAL_KEYS:
+        v = _clean_url((b.socials or {}).get(k))
+        if v:
+            socials[k] = v
+    return {
+        "name": (b.name or "").strip()[:80],
+        "logo": logo,
+        "accent_color": accent,
+        "tagline": (b.tagline or "").strip()[:140],
+        "website": _clean_url(b.website),
+        "socials": socials,
+    }
+
+
 class ProfileIn(BaseModel):
     business_name: Optional[str] = None
     payout_address: Optional[str] = None
+    branding: Optional[BrandingIn] = None
 
 
 @api.put("/merchant/profile")
@@ -260,6 +312,10 @@ async def update_profile(body: ProfileIn, merchant: dict = Depends(current_merch
         if not valid_solana_address(body.payout_address):
             raise HTTPException(400, "Invalid payout address")
         updates["payout_address"] = body.payout_address
+    if body.branding is not None:
+        updates["branding"] = clean_branding(body.branding)
+        if updates["branding"]["name"] and body.business_name is None:
+            updates["business_name"] = updates["branding"]["name"]
     if updates:
         await db.merchants.update_one({"address": merchant["address"]}, {"$set": updates})
     return await db.merchants.find_one({"address": merchant["address"]}, {"_id": 0})
@@ -274,6 +330,7 @@ class InvoiceIn(BaseModel):
     split_address: Optional[str] = None
     split_type: Optional[str] = None   # "percent" | "fixed"
     split_value: Optional[float] = None
+    branding: Optional[BrandingIn] = None
 
 
 async def fetch_sol_usd() -> Optional[float]:
@@ -311,6 +368,15 @@ async def create_invoice(body: InvoiceIn, merchant: dict = Depends(current_merch
         split_type = body.split_type
         split_value = body.split_value
 
+    if body.branding is not None:
+        branding = clean_branding(body.branding)
+        m_updates = {"branding": branding}
+        if branding["name"]:
+            m_updates["business_name"] = branding["name"]
+        await db.merchants.update_one({"address": merchant["address"]}, {"$set": m_updates})
+    else:
+        branding = merchant.get("branding") or {}
+
     priv = wots.generate_privkey()
     merkle_root = wots.pubkey_merkle_root(priv)
     vault_address, bump = sv.derive_vault(merkle_root)
@@ -338,6 +404,7 @@ async def create_invoice(body: InvoiceIn, merchant: dict = Depends(current_merch
         "split_address": split_address,
         "split_type": split_type,
         "split_value": split_value,
+        "branding": branding,
         "created_at": iso(created),
         "expires_at": iso(created + timedelta(minutes=body.expiry_minutes)),
         "paid_at": None,

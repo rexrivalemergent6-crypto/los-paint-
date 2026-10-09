@@ -58,3 +58,10 @@ key-lifecycle safety, quantum-safety disclosures.
 - P1: Email/webhook notification on payment (in-app only today).
 - P2: Split Vault partial settlement / tips; multi-item cart; getMultipleAccounts batched watcher;
   CoinGecko price caching; split server.py into routers.
+
+## Iteration 3 (2026-10)
+- Fixed Phantom SIWS "signature failed": challenge domain/URI bound to request Origin; Chain ID solana:mainnet; step-specific wallet errors.
+- Always-visible inline invoice composer on dashboard (no "New invoice" dialog); fill without wallet, Phantom connect only on "Connect & generate vault".
+- Full merchant branding (name, logo data-URL ≤300KB, accent hex, tagline, website, socials x/instagram/telegram/discord) — saved to merchant.branding and snapshotted per invoice (`invoice.branding`); localStorage `qpos_branding` pre-connect.
+- Branded QR (logo centre, brand-colour modules auto-darkened for scan contrast, name/tagline/amount) on composer preview, invoice detail, checkout; checkout header/links branded.
+- Header + landing link to x.com/tryquantumpos.

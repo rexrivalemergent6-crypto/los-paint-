@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { QRCodeSVG } from "qrcode.react";
+import BrandedQR from "@/components/BrandedQR";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -136,9 +136,8 @@ export default function InvoiceDetailDialog({ invoice, open, onOpenChange, onUpd
 
                 {/* QR + checkout */}
                 <div className="flex flex-col items-center gap-3 border border-white/10 bg-black/40 p-5 backdrop-blur-xl">
-                  <div className="bg-white p-3">
-                    <QRCodeSVG data-testid="checkout-qr" value={inv.solana_pay_url} size={150} level="M" />
-                  </div>
+                  <BrandedQR testid="checkout-qr" value={inv.solana_pay_url} branding={inv.branding}
+                    fallbackName={inv.merchant_name} amountSol={inv.amount_sol} size={160} />
                   <p className="font-plex-mono text-[10px] uppercase tracking-widest text-white/40">Solana Pay · scan to pay</p>
                   <div className="flex w-full items-center gap-2">
                     <code className="flex-1 truncate border border-white/10 bg-black px-2 py-1.5 font-plex-mono text-[11px] text-quantum-cyan">

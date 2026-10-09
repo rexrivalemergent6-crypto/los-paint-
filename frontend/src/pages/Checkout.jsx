@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
-import { QRCodeSVG } from "qrcode.react";
+import BrandedQR from "@/components/BrandedQR";
+import BrandLinks from "@/components/BrandLinks";
+import { normalizeBranding } from "@/lib/branding";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -87,6 +89,8 @@ export default function Checkout() {
   const tipLamports = computeTipLamports();
   const totalSol = (inv.amount_lamports + tipLamports) / 1e9;
   const payUrl = `solana:${inv.vault_address}?amount=${totalSol}`;
+  const brand = normalizeBranding(inv.branding);
+  const accent = brand.accent_color;
   const TIP_OPTS = [{ p: 0, l: "None" }, { p: 10, l: "10%" }, { p: 15, l: "15%" }, { p: 20, l: "20%" }, { p: -1, l: "Custom" }];
 
   return (
@@ -100,20 +104,27 @@ export default function Checkout() {
 
       <div className="relative z-10 mx-auto flex min-h-screen max-w-md flex-col justify-center px-5 py-10">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          className="border border-white/10 bg-black/60 p-6 backdrop-blur-xl">
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center bg-quantum-green">
-                <Vault weight="fill" className="h-4 w-4 text-black" />
+          className="border bg-black/60 p-6 backdrop-blur-xl" style={{ borderColor: `${accent}55`, borderTop: `3px solid ${accent}` }}>
+          <div className="mb-5 flex items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              {brand.logo ? (
+                <img data-testid="checkout-brand-logo" src={brand.logo} alt="" className="h-10 w-10 shrink-0 bg-white object-contain p-0.5" />
+              ) : (
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center" style={{ background: accent }}>
+                  <Vault weight="fill" className="h-5 w-5 text-black" />
+                </div>
+              )}
+              <div className="min-w-0">
+                <p data-testid="checkout-brand-name" className="truncate font-mono text-base font-bold tracking-tighter">{inv.merchant_name}</p>
+                {brand.tagline && <p data-testid="checkout-brand-tagline" className="truncate font-plex-mono text-[11px] text-white/50">{brand.tagline}</p>}
               </div>
-              <span className="font-mono text-sm font-bold tracking-tighter">{inv.merchant_name}</span>
             </div>
             <StatusBadge status={inv.status} testid="checkout-status" />
           </div>
 
           <div className="text-center">
             <p className="font-plex-mono text-[10px] uppercase tracking-[0.2em] text-white/40">Amount due</p>
-            <div className="mt-1 font-mono text-5xl font-black tracking-tighter text-quantum-green">
+            <div className="mt-1 font-mono text-5xl font-black tracking-tighter" style={{ color: accent }}>
               {inv.amount_sol} <span className="text-xl text-white/40">SOL</span>
             </div>
             {inv.usd_rate && <p className="mt-1 font-plex-mono text-xs text-white/40">≈ ${(inv.amount_sol * inv.usd_rate).toFixed(2)} USD</p>}
@@ -144,9 +155,8 @@ export default function Checkout() {
               </motion.div>
             ) : (
               <motion.div key="pay" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-6">
-                <div className="mx-auto w-fit bg-white p-3">
-                  <QRCodeSVG data-testid="checkout-pay-qr" value={payUrl} size={168} level="M" />
-                </div>
+                <BrandedQR testid="checkout-pay-qr" value={payUrl} branding={brand} fallbackName={inv.merchant_name}
+                  amountSol={Number(totalSol.toFixed(6))} size={176} />
                 <p className="mt-2 text-center font-plex-mono text-[10px] uppercase tracking-widest text-white/40">
                   Scan with any Solana wallet
                 </p>
@@ -210,7 +220,9 @@ export default function Checkout() {
             )}
           </AnimatePresence>
 
-          <div className="mt-6 flex items-center justify-center gap-1.5 font-plex-mono text-[10px] text-white/30">
+          <BrandLinks branding={brand} className="mt-6" />
+
+          <div className="mt-4 flex items-center justify-center gap-1.5 font-plex-mono text-[10px] text-white/30">
             <ShieldCheck weight="fill" className="h-3.5 w-3.5 text-quantum-green" />
             Secured by a post-quantum Winternitz vault
           </div>
