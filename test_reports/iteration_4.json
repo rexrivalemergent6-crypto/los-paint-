@@ -1,0 +1,31 @@
+{
+  "summary": "RPC proxy + home-nav + mobile-overflow iteration verified. Backend: 40/40 pytest pass (new /app/backend/tests/test_rpc_proxy.py adds 6 tests covering POST /api/rpc for getLatestBlockhash/getBlockHeight/getBalance/getSignatureStatuses, allow-list rejection of requestAirdrop and missing method). All requests carry a browser Origin header to prove the proxy doesn't 403. Frontend end-to-end (fake Phantom via add_init_script + expose_function pySignMessage, pure-stdlib base58): 1) Desktop activate-vault flow: 9 /api/rpc calls (getLatestBlockhash, getSignatureStatuses, getBlockHeight polling) with ZERO direct api.mainnet-beta.solana.com requests; signAndSendTransaction received a real recentBlockhash (verified len>=32); no '403'/'Access forbidden'/'failed to get recent blockhash' toast or body text. 2) Routes: /dashboard -> /app redirect works; header-home-link + header-home-logo visible on /app and navigate to /. 3) Logged-in landing: launch-app-btn text == 'Open dashboard', phantom-connect-btn hidden, click returns to /app still authenticated. 4) Mobile viewport 390x800: InvoiceDetailDialog bounding box = {left:8, right:382, width:374}, document.scrollWidth==390 (no horizontal overflow); checkout /pay/{id} also fits (scrollWidth==390).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_quantumpos.py",
+    "/app/backend/tests/test_auth_origin.py",
+    "/app/backend/tests/test_branding.py",
+    "/app/backend/tests/test_rpc_proxy.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "rpc_proxy() correctly allow-lists read + sendTransaction methods and rejects everything else with 400 (verified requestAirdrop -> 400). Payload is reconstructed server-side so client cannot smuggle extra fields.",
+    "rpc_raw() iterates RPC_ENDPOINTS (primary + SOLANA_RPC_FALLBACKS) with status-code AND JSON-RPC-error fallback for 403/429/-32005 and 5xx. Good resilience; raises 502 'All Solana RPC endpoints failed' with last error for debuggability.",
+    "solanaClient.js Connection points at API+/rpc with disableRetryOnRateLimit=false; confirmByPolling polls getSignatureStatuses + getBlockHeight every 2s with 90s timeout — matches the proxy architecture (no WS needed) and will produce a clean 'Timed out…' error after real blockhash expiry rather than a 403.",
+    "Routes split: '/' always Landing, '/app' Dashboard, legacy '/dashboard' Navigate -> /app. Header is only rendered inside Dashboard, so header-home-link navigates via react-router Link (SPA, no reload) — confirmed logged-in state is preserved on return.",
+    "Logged-in Landing hides phantom-connect-btn and switches launch-app-btn label to 'Open dashboard' (merchant truthy). Clean mental model: landing is marketing even when authed, dashboard is 'the app'.",
+    "InvoiceDetailDialog uses `w-[calc(100vw-1rem)] min-w-0 overflow-x-hidden [&>*]:min-w-0` which is what prevents the 390px overflow — the previous overflow was from unbounded flex children. Verified: dialog width 374px on a 390px viewport.",
+    "Minor nit: solanaClient.confirmByPolling catches errors in try/catch but only re-throws when message matches /failed on-chain|expired/. A persistent /api/rpc 502 from the backend therefore silently retries for 90s before 'Timed out' — acceptable but could log a warn.",
+    "Minor nit: /api/rpc has no rate limiting at the FastAPI layer; a malicious client could use the proxy as a free Solana RPC relay. Not blocking but worth adding IP-based throttling later."
+  ],
+  "updated_files": ["/app/backend/tests/test_rpc_proxy.py"],
+  "success_rate": {"backend": "100% (40/40)", "frontend": "100% of requested flows"},
+  "test_credentials": "No static credentials — throwaway Ed25519 keys generated per run via cryptography.hazmat (fake Phantom). /app/memory/test_credentials.md still does not exist (not required for this app).",
+  "seed_data_creation": "Each run creates a throwaway merchant + 1-2 'TEST_'-prefixed invoices (status 'created' only — vault activation goes through fake Phantom and no real transaction is broadcast). No funds moved on mainnet.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Fake-Phantom harness is now self-contained (pure-stdlib base58 in Python test code, see last Playwright script) because the browser automation env lacks the base58 pip package. Signing uses cryptography.hazmat Ed25519PrivateKey + page.expose_function('pySignMessage'). To validate RPC proxy end-to-end, listen on page.on('request') and count '/api/rpc' vs 'api.mainnet-beta.solana.com' hits — currently 9 vs 0 for a single Activate Vault click. The fake provider's signAndSendTransaction returns a random 64-byte signature so confirmByPolling will eventually time out after ~90s — do NOT wait for success; a 10-12s wait is enough to prove the blockhash was fetched and the signing path ran. Mobile checkout-open-in-phantom link only renders when !hasPhantom() && isMobile() — isMobile() checks navigator.userAgent, so a mobile viewport alone is not enough; use playwright context user_agent='...iPhone...' if you want to force that path. iPhone-UA verification was skipped here but the code path has not changed since iteration_2.",
+  "rca of the issue": "N/A — original 403 'Access forbidden' from api.mainnet-beta.solana.com was fixed by routing all browser JSON-RPC through the server-side allow-listed /api/rpc proxy (public RPC rejects browser Origin headers but accepts server-to-server calls, with publicnode.com as fallback). Verified: 0 direct mainnet-beta calls from the browser, getLatestBlockhash succeeds, no 403 toast surfaces."
+}
